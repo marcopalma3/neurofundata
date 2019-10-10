@@ -1,3 +1,28 @@
+#' Bspline projection of 3D images
+#'
+#' Creates a design matrix from an isotropic tensor product of Bsplines only 
+#' for voxels within a mask. 
+#'
+#' @param knot_space space between consecutive knots (in mm, equal for each dimension)
+#' @param mask_fname path of the mask file
+#'
+#' @return A list with the following elements
+#' \describe{
+#'   \item{basis_mat}{}
+#'   \item{voxel_grid_nonzero_mask}{}
+#'   \item{dims_mask}{}
+#'   \item{mask_subset}{First item}
+#' }
+#'
+#' @author Marco Palma, \email{M.Palma@@warwick.ac.uk}
+#' @keywords calc_projection_Bspl
+#'
+#' @export
+#' @importFrom oro.nifti readNIfTI
+#' @importFrom fda bsplineS
+#' @importFrom spam kronecker
+
+
 calc_projection_Bspl <- function(knot_space, mask_fname){
 
   start_time <- Sys.time()

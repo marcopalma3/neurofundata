@@ -2,11 +2,15 @@ Package: neurofundata
 Type: Package
 Title: Functional data analysis tools for neuroimaging data.
 Version: 0.1.0
-Author: Marco Palma [aut, cre]
+Author: person("Marco", "Palma", email = "M.Palma@warwick.ac.uk",
+                  role = c("aut", "cre"))
 Maintainer: Marco Palma <M.Palma@warwick.ac.uk>
 Description: This package is specifically designed to deal with 3-dimensional 
-images in NIfTI format and standard preprocessing tasks in neuroimaging. 
-It offers a suite of tools from functional data analysis (FDA) based on sparse arrays.
+    images in NIfTI format and standard preprocessing tasks in neuroimaging. 
+    It offers a suite of tools from functional data analysis (FDA) based on sparse arrays.
 License: What license is it under?
 Encoding: UTF-8
 LazyData: true
+Suggests: knitr, RMarkdown
+VignetteBuilder: knitr
+RoxygenNote: 6.1.1
