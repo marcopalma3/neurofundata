@@ -1,0 +1,1097 @@
+---
+title: "Functional quantile regression for brain age prediction"
+author: "Marco Palma"
+output:
+  html_document: 
+    code_folding: hide
+    highlight: tango
+    theme: readable
+  html_notebook:
+    code_folding: hide
+    highlight: tango
+    theme: readable
+editor_options:
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, fig.align="center"#,
+                      #dev='pdf', fig.path = 'brainPAD_figures_KS12_pve08_LASSO/'
+                      )
+#options(digits = 3)
+```
+
+- Load the packages needed for the analysis
+
+```{r packages}
+library(pacman)
+p_load(stringr, tidyverse, magrittr, ggpubr, ggsignif)
+p_load(fields, fda, oro.nifti, spam, Hmisc, knitr, rqPen, quantreg, scam)  
+```
+
+- suppose that you have a mask
+- decide knot space (another RMarkdown file for knot selection)
+
+Check your parameter setting here:
+
+```{r parameters}
+knot_space <- 12
+pve_threshold <- 0.8
+set.seed(657)     
+tau_lev <- c(0.05, 0.5, 0.95)
+```
+
+
+## Brain images - Import and basis expansion
+
+These are the functions needed to build the tensor product of basis functions.
+
+```{r functions}
+
+resize_image <- function(mask, img = mask){
+  mask <- drop(mask)
+  img <- drop(img)
+  dims <- dim(mask)
+  
+  if(!all.equal(dim(img), dims)) stop("Mask and img must have the same dimensions!")
+  
+  nonzero_coord <- matrix(NA, nrow = length(dims), ncol = 2)
+  rownames(nonzero_coord) <- paste0("Dim", 1:length(dims))
+  colnames(nonzero_coord) <- c("first","last")
+  
+  
+  for(i in 1:length(dims)) nonzero_coord[i,] <- range(which(apply(mask,i,sum) != 0))
+  ###select first and last coordinate for which the sum is non zero
+  
+  resized_array <- (img[,,]*(mask[,,]>0))[nonzero_coord[1,"first"]:nonzero_coord[1,"last"],
+                                          nonzero_coord[2,"first"]:nonzero_coord[2,"last"],
+                                          nonzero_coord[3,"first"]:nonzero_coord[3,"last"]]
+  
+  return(list(array = resized_array, original_coord = nonzero_coord))
+}
+
+calc_projection_Bspl <- function(knot_space, mask_fname){
+  
+  start_time <- Sys.time()
+  mask <- readNIfTI(fname = mask_fname)  %>%
+    magrittr::is_greater_than(0.5)*1      ### to avoid fuzzy boundaries
+  mask_subset <- resize_image(mask)
+  dims_mask <- dim(mask_subset$array)
+  voxel_grid_nonzero_mask<- which(as.vector(mask_subset$array) != 0)
+  
+  basismat_dim1 <- bsplineS(x = 1:dims_mask[1], breaks = c(seq(1,dims_mask[1], by = knot_space), dims_mask[1]), norder=3, nderiv=0, returnMatrix=TRUE)
+  basismat_dim2 <- bsplineS(x = 1:dims_mask[2], breaks = c(seq(1,dims_mask[2], by = knot_space), dims_mask[2]), norder=3, nderiv=0, returnMatrix=TRUE)
+  basismat_dim3 <- bsplineS(x = 1:dims_mask[3], breaks = c(seq(1,dims_mask[3], by = knot_space), dims_mask[3]), norder=3, nderiv=0, returnMatrix=TRUE)
+  
+  design_mat <- spam::kronecker(basismat_dim3, basismat_dim2, make.dimnames = TRUE) %>%
+    spam::kronecker(., basismat_dim1, make.dimnames = TRUE) %>%
+    .[voxel_grid_nonzero_mask, ]  %>%
+    .[, colSums(.) != 0]
+  
+  #design_mat@x[design_mat@x<0.001] <- 0
+  #design_mat <- design_mat[, colSums(design_mat) != 0]
+  
+  cat("The number of basis functions is ", ncol(design_mat),".\n", sep = "")
+  
+  return(list("basis_mat" = design_mat, 
+              "voxel_grid_nonzero_mask" = voxel_grid_nonzero_mask, 
+              "dims_mask" = dims_mask,
+              "mask_subset" = mask_subset))
+}
+
+slices.plot <- function(image.vec, dims = dims_mask, 
+                        voxels = results$voxel_grid_nonzero_mask, 
+                        col.threshold = 0, 
+                        legend.range = range(image.vec), ...){
+  img <- rep(NA, prod(dims_mask))
+  img[voxels] <- image.vec
+  
+  ybr <- seq(legend.range[1], legend.range[2], length.out = 101)
+
+  rc1 <- colorRampPalette(colors = c("blue", "white"), space="Lab")(length(which(ybr < col.threshold)))    
+  rc2 <- colorRampPalette(colors = c("white", "red"), space="Lab")(length(which(ybr > col.threshold))-1)
+  rampcols <- c(rc1, rc2)
+  
+  if(col.threshold == 0){
+    leg.text <- c(format(min(ybr), scientific = TRUE, digits = 3), 
+                  col.threshold, format(max(ybr), scientific = TRUE, digits = 3))
+  } else{
+    leg.text <- c(floor(min(ybr)), col.threshold, ceiling(max(ybr)))
+  }
+  overlay(x = nifti(resize_image(mask, img_template)$array), 
+          y = nifti(array(img, dim = dims_mask)), 
+          plot.type="single", z = seq(16, 136, by = 5), 
+          col.y = scales::alpha(rampcols, 0.45), useRaster = TRUE, oma = c(4,0,0,0))
+  fields::image.plot(legend.only=TRUE, zlim= range(ybr), 
+                     col = rampcols, horizontal = TRUE, 
+                     legend.mar = 1.5, legend.cex=0.5, legend.width = 0.8, 
+                     legend.args = list(text = leg.text,
+                                        col="white", cex=0.7, side = 1, 
+                                        at = c(min(ybr),col.threshold, max(ybr))))
+  #par(xpd = TRUE)
+  #lab_img <- 34 + seq(16, 136, by = 5)
+  #annot_grid <- expand.grid(0.025 + seq(0, 0.95, by = 0.2), seq(0.97, 0.1, by = -0.175))
+  #library(grid)
+  #grid.text(lab_img, x=annot_grid[,1], y=annot_grid[,2],gp=gpar(fontsize=10, cex = 0.9, col = "white"))
+}
+
+gg_color_hue <- function(n) {
+  hues = seq(15, 375, length = n + 1)
+  hcl(h = hues, l = 65, c = 100)[1:n]
+}
+
+forest.rq.plot <- function(pred.interval, mycol){
+  
+  data_forest_center <- pred.interval$data_forest_center
+  mycol <- mycol[as.numeric(data_forest_center$Dx)]
+  excesspoints <- pred.interval$excesspoints
+  pal <- c("#009E73", "gold3", "#D55E00")
+  
+  forest.rq <- ggplot(data_forest_center, 
+                      aes(y=id, x = AgePredMed, xmin = AgePredLower,
+                          xmax=AgePredUpper, colour = Dx))+  
+    geom_point(cex=0.5)+
+    scale_colour_manual(values=pal) + 
+    ggExtra::removeGridY() + 
+    theme(axis.ticks.y = element_blank(), axis.text.y = element_blank(),
+          axis.line.y = element_line(linetype = "blank"), 
+          strip.text = element_text(size = 12))+
+    geom_errorbarh(height = 0.01) + 
+    geom_vline(xintercept = 0, linetype = "dashed") +
+    theme(legend.position = "none", 
+          strip.text.x = element_text(size = 12)) +
+    geom_point(data = excesspoints, mapping = aes_string(x = "x",y = "id"),
+               inherit.aes = F, size = 1, shape = 18) +
+    facet_wrap(. ~ Dx, scales = "free_y", shrink = TRUE) + 
+    xlab('Difference from chronological age') +
+    ylab('Subjects')
+
+  print(forest.rq)
+}
+
+# fqr_prediction <- function(train_sub, test_sub, pred_table, qr_pen = "MCP", return_func_coef = FALSE){ #######
+#   
+#   data_projected_train <- data_projected[train_sub,]
+#   data_projected_test <- data_projected[test_sub,]
+# 
+#   coef_data <- data_projected_train  %>% scale(scale = F)
+#   FPCA_mat <-  Matrix::tcrossprod(coef_data, basis_W_half)/sqrt(nrow(coef_data)-1)  
+# 
+#   tmpSVD <- svd(FPCA_mat, nu = 0)  ###, nv = 50
+#   values <- tmpSVD$d^2 
+#   #plot(values, ylim = c(0, max(values)+100), main = "Screeplot", type = "b")
+# 
+#   ncomp <- which(cumsum(values)/sum(values) >= pve_threshold)[1]
+#   vectors <- Matrix::solve(basis_W_half, tmpSVD$v[, 1:ncomp])  
+# 
+#   scores_mat <- data_projected %>% 
+#     data.matrix(., rownames.force = TRUE) %>%
+#     sweep(., 2, colMeans(data_projected_train)) %>%
+#     magrittr::multiply_by_matrix(.,int_mat) %*% vectors %>%     
+#     as.matrix() 
+# 
+#   regr_data <- scores_mat %>% 
+#     as.data.frame(.) %>%
+#     tibble::rownames_to_column(., var = "PTID") %>%
+#     right_join(data_ADNI_bl_817, ., by =  "PTID") %>%
+#     select(PTID, AGE, starts_with('V', ignore.case = FALSE)) %>%
+#     tibble::column_to_rownames(., "PTID")
+# 
+#   set.seed(657)
+#   model_lower <- rqPen::cv.rq.pen(x = as.matrix(regr_data[train_sub, -1]),
+#                                 y = regr_data[train_sub, ]$AGE,
+#                                 tau = tau_lev[1],
+#                                 method = "fn",
+#                                 penalty = qr_pen)
+#   model_med <- rqPen::cv.rq.pen(x = as.matrix(regr_data[train_sub, -1]),
+#                                 y = regr_data[train_sub, ]$AGE,
+#                                 tau = tau_lev[2],
+#                                 method = "fn",
+#                                 penalty = qr_pen)
+#   model_upper <- rqPen::cv.rq.pen(x = as.matrix(regr_data[train_sub, -1]),
+#                                 y = regr_data[train_sub,]$AGE,
+#                                 tau = tau_lev[3],
+#                                 method = "fn",
+#                                 penalty = qr_pen)
+# 
+#   pred_table[test_sub, 1] <- model_lower %>% 
+#     predict(newx = as.matrix(regr_data[test_sub,-1]))
+#   pred_table[test_sub, 2] <- model_med %>% 
+#     predict(newx = as.matrix(regr_data[test_sub,-1]))
+#   pred_table[test_sub, 3] <- model_upper %>%
+#     predict(newx = as.matrix(regr_data[test_sub,-1]))
+#   
+#   if(return_func_coef == FALSE) return(pred_table)
+#   else return(list(pred_table = pred_table, 
+#                   no_fpc = ncomp, 
+#                   evec = vectors,
+#                   model_med_coef = with(model_med, 
+#                                         models[[which(cv[,1] == lambda.min)]]$coefficients[-1]) %>% as(., "sparseMatrix") )) 
+# }  
+```
+
+```{r function_pred_REV}
+
+fqr_prediction <-  function(train_sub,
+                            test_sub,
+                            data_demo = data_ADNI_bl_817,
+                            pred_table,
+                            qr_pen = "LASSO",
+                            qr_postLASSO = FALSE,
+                            lambda = NULL,
+                            tau_levels = tau_lev,
+                            return_func_coef = FALSE){
+  
+    data_projected_train <- data_projected[train_sub,]
+    data_projected_test <- data_projected[test_sub,]
+    
+    coef_data <- data_projected_train  %>% scale(scale = F)
+    FPCA_mat <- Matrix::tcrossprod(coef_data, basis_W_half) / sqrt(nrow(coef_data) - 1)
+    
+    tmpSVD <- svd(FPCA_mat, nu = 0)  ###, nv = 50
+    values <- tmpSVD$d ^ 2
+
+    ncomp <- which(cumsum(values) / sum(values) >= pve_threshold)[1]
+    vectors <- Matrix::solve(basis_W_half, tmpSVD$v[, 1:ncomp])
+    
+    scores_mat <- data_projected %>%
+      data.matrix(., rownames.force = TRUE) %>%
+      sweep(., 2, colMeans(data_projected_train)) %>%
+      magrittr::multiply_by_matrix(., int_mat) %*% vectors %>%
+      as.matrix()
+    
+    regr_data <- scores_mat %>%
+      as.data.frame(.) %>%
+      tibble::rownames_to_column(., var = "PTID") %>%
+      right_join(data_demo, ., by =  "PTID") %>%
+      select(PTID, AGE, starts_with('V', ignore.case = FALSE)) %>%
+      tibble::column_to_rownames(., "PTID")
+    
+    set.seed(657)
+    model_lower <- rqPen::cv.rq.pen(x = as.matrix(regr_data[train_sub, -1]),
+                                    y = regr_data[train_sub, ]$AGE,
+                                    tau = tau_levels[1],
+                                    method = "br",
+                                    penalty = qr_pen)
+    
+    model_med <- rqPen::cv.rq.pen(x = as.matrix(regr_data[train_sub, -1]),
+                                  y = regr_data[train_sub, ]$AGE,
+                                  tau = tau_levels[2],
+                                  method = "br",
+                                  penalty = qr_pen)
+    
+    model_upper <- rqPen::cv.rq.pen(x = as.matrix(regr_data[train_sub, -1]),
+                                    y = regr_data[train_sub,]$AGE,
+                                    tau = tau_levels[3],
+                                    #lambda = lambda,
+                                    method = "br",
+                                    penalty = qr_pen)
+    
+    model_lower_coef <- with(model_lower, models[[which(cv[, 1] == lambda.min)]]$coefficients[-1])
+    model_med_coef <- with(model_med, models[[which(cv[, 1] == lambda.min)]]$coefficients[-1])
+    model_upper_coef <- with(model_upper, models[[which(cv[, 1] == lambda.min)]]$coefficients[-1])
+    
+    lambda_min_med <- model_med$lambda.min
+    
+    if (return_func_coef == TRUE)
+      print(cv_plots(model_med, logLambda = TRUE, loi = NULL))
+    
+    if (qr_postLASSO == TRUE) {
+      model_lower <- model_lower_coef %>%
+        subset(., !not(.)) %>%
+        when(length(names(.)) < 1  ~ 1, ~ names(.)) %>%
+        paste(., collapse = "+") %>%
+        paste("AGE ~ ", .) %>%
+        formula(.) %>%
+        rq(., tau = tau_lev[1], data = regr_data[train_sub,])
+      
+      model_med <- model_med_coef %>%
+        subset(., !not(.)) %>%
+        when(length(names(.)) < 1  ~ 1, ~ names(.))  %>%      
+        paste(., collapse = "+") %>%
+        paste("AGE ~ ", .) %>%
+        formula(.) %>%
+        rq(., tau = tau_lev[2], data = regr_data[train_sub,])
+      
+      model_upper <- model_upper_coef %>%
+        subset(., !not(.)) %>%
+        when(length(names(.)) < 1  ~ 1, ~ names(.))  %>%
+        paste(., collapse = "+") %>%
+        paste("AGE ~ ", .) %>%
+        formula(.) %>%
+        rq(., tau = tau_lev[3], data = regr_data[train_sub,])
+      
+      pred_table[test_sub, 1] <- model_lower %>%
+        predict(newdata = regr_data[test_sub, ])
+      pred_table[test_sub, 2] <- model_med %>%
+        predict(newdata = regr_data[test_sub, ])
+      pred_table[test_sub, 3] <- model_upper %>%
+        predict(newdata = regr_data[test_sub, ])
+      
+    } else {
+      pred_table[test_sub, 1] <- model_lower %>%
+        predict(newx = as.matrix(regr_data[test_sub,-1]))
+      pred_table[test_sub, 2] <- model_med %>%
+        predict(newx = as.matrix(regr_data[test_sub,-1]))
+      pred_table[test_sub, 3] <- model_upper %>%
+        predict(newx = as.matrix(regr_data[test_sub,-1]))
+    }
+    
+    if (return_func_coef == FALSE)
+      return(pred_table)
+    else
+      return(list(pred_table = pred_table,
+                  no_fpc = ncomp,
+                  evec = vectors,
+                  model_med_coef = as(model_med_coef, "sparseMatrix"),
+                  model_lower_coef = as(model_lower_coef, "sparseMatrix"),
+                  model_upper_coef = as(model_upper_coef, "sparseMatrix"),
+                  lambda_min = lambda_min_med,
+                  no_comp = ncomp
+                  )
+      )
+  }  
+```
+
+Here the calculation.
+
+```{r basis_functions_WS}
+system.time(
+calc_projection_Bspl(knot_space, mask_fname = "smoothed_mask_125.nii.gz") %>% 
+  list2env(.,  envir = .GlobalEnv)
+)
+#save.image(file = "basis_functions.RData")
+```
+
+- mask
+- create basis functions and save workspace
+- import image and return basis coefficients
+
+Now go on the cluster where you store your images. 
+
+```{r cluster_code, eval = FALSE}
+
+### Generate image list
+
+ls all_images_folder | wc -l
+rm imagelist.txt
+ls -rt path/to/images/* > imagelist.txt
+
+### Import basis_functions.RData
+
+pscp C:\Users\Asus\Desktop\IM-AGEING\basis_functions.RData u1560346@buster.stats.warwick.ac.uk:/storage/u1560346
+
+### Run the projection script
+
+qsub project_TBM_fast.R --ws "basis_functions.RData"
+
+### Concatenate all the single-image predictions
+
+cat ./TBM_projections_fast/* > data_projected.dat
+#if COLUMNWISE paste PAC_projections/* -d '\t' > filemerged.txt
+
+### Total elapsed time 
+
+qacct -j <jobID> -t <task_list> | grep -e start_time -e end_time | sort -k5 | awk 'NR==1; END{print}' | awk 'BEGIN { ORS = "\t" } {print $5}'  | awk '{print $1 "\t" $2 "\t" "knot_spacing"}' >> runtimeTBM.txt
+
+### Download all-images projections
+
+pscp u1560346@buster.stats.warwick.ac.uk:/storage/u1560346/data_projected.dat C:\Users\Asus\Desktop\IM-AGEING
+```
+
+```{r import_proj_coef}
+#load("basis_functions.RData")
+
+data_projected <- paste0("data_projected_", knot_space, "mm.dat") %>%
+  data.table::fread(.) %>%
+  data.frame(., row.names = 1) %>%
+  as.matrix()
+
+start_time <- Sys.time()
+int_mat <- Matrix::crossprod(basis_mat)  ###matrix W
+basis_W_half <- try(Matrix::chol(int_mat))
+if("try-error" %in% class(basis_W_half)) basis_W_half <- Matrix::chol(int_mat, pivot = TRUE)
+end_time <-  Sys.time()
+
+```
+
+You can check the condition number with #system.time(condnum <- Matrix::rcond(int_mat)) but it may take a few minutes.
+
+
+## Check the quality of the projection
+
+- import template
+
+```{r template_img}
+mask <- readNIfTI(fname = "smoothed_mask_125.nii.gz")
+fn = "ADNI_ICBM9P_mni_4step_MDT.img"
+dimscan <- c(220,220,220)
+img_template <- array(readBin(fn, what = "int", n = prod(dimscan), size = 2, signed = FALSE), dim = dimscan)
+#ortho2(as.nifti(resize.image(mask, img_template)$array), add.orient = FALSE,
+#  text = "Template with smoothed mask", text.cex = 1.25)
+```
+
+- check projection for subject 002_S_0413
+
+```{r check_proj, fig.width=5, fig.height=5}
+allvoxels_data  <- basis_mat %*% data_projected["002_S_0413",] %>% 
+  as.matrix(.) %>% 
+  data.frame("voxel" = voxel_grid_nonzero_mask, "img" = .)  %>%
+  left_join(data.frame("voxel" = 1:prod(dims_mask)), .) %>%
+  .[,2]  %>%
+  array(., dim = dims_mask)
+
+orig_img <- readBin("002_S_0413_sc_jacobian.img", what = "int", n = 220^3, size = 2, signed = FALSE) %>% 
+  array(., dim = c(220,220,220)) %>%
+  resize_image(mask = mask, img = .) %>%
+  .$array %>%
+  nifti(.)
+
+img_diff <- allvoxels_data - orig_img
+
+hist_data <- data.frame(dat = c(as.vector(orig_img), as.vector(allvoxels_data)),
+                        type = rep(c("Original", "Projected"), 
+                        each = length(as.vector(orig_img))))
+
+
+hist_data %>%
+  drop_na %>%
+  filter(dat > 0) %>%
+  ggplot(., aes(dat, fill = type)) + 
+  geom_density(alpha = 0.1) +
+  scale_fill_manual(values = c("yellow","darkblue"))
+
+slices.plot(img_diff[is.na(img_diff) == FALSE] , voxels = voxel_grid_nonzero_mask)
+
+```
+
+
+## Load demographic and clinical data
+
+```{r load_pred_table}
+load("ADNI_bl.RData")  ###where data_ADNI_bl_817 is stored
+
+pred_all <- data.frame(matrix(NA, nrow = nrow(data_ADNI_bl_817),ncol = 3),
+  select(data_ADNI_bl_817, Dx, AGE, PTID))
+
+pred_all <- filter(pred_all,
+                   AGE >= min(pred_all$AGE[pred_all$Dx == "N"], na.rm = TRUE) &
+                   AGE <= max(pred_all$AGE[pred_all$Dx == "N"], na.rm = TRUE))
+
+rownames(pred_all) <- pred_all$PTID
+
+names(pred_all) <- c("AgePredLower", "AgePredMed", "AgePredUpper", 
+                        "Dx", "ChronoAge", "PTID")
+
+pred_all$Dx <- ordered(pred_all$Dx, levels = c("N","MCI","AD"), 
+                       labels = c("Control", "MCI", "AD"))
+```
+
+```{r hist_data, fig.width=6, fig.height=5}
+# ggplot(data = pred_all, aes(x = ChronoAge, fill = fct_rev(Dx))) +
+# geom_histogram(position = "stack",
+#                bins = nclass.FD(pred_all$ChronoAge)) +
+#   labs(x = "Chronological age", y = "Frequency", fill = "Diagnosis") +
+#   scale_fill_manual(values = rev(c("#009E73", "gold3", "#D55E00")),
+#                     guide = guide_legend(reverse = TRUE)) + 
+#   theme_classic()
+  
+ggplot(data = pred_all, aes(x = ChronoAge, 
+                            fill = fct_rev(Dx), 
+                            color = fct_rev(Dx)#, lty = fct_rev(Dx)
+                            )) + 
+  stat_bin(geom="step", bins = nclass.FD(pred_all$ChronoAge),
+           direction="vh",
+           position = "identity", size = 1.2, alpha = 0.5, pad = TRUE
+           )+
+  labs(x = "Chronological age", y = "Frequency") +
+  scale_color_manual(name = "Diagnosis",
+                     values = rev(c("#009E73", "gold3", "#D55E00")),
+                     guide = guide_legend(reverse = TRUE,
+                                          override.aes = list(alpha = 1,
+                                                              size = 0.9))) + 
+  theme_classic() +
+  geom_hline(yintercept = 0, colour = "white", size = 1.5) +
+  expand_limits(y = 0) +
+  scale_y_continuous(expand = c(0, 0))
+
+
+# ggplot(data = pred_all, aes(x = ChronoAge, stat(count),
+#                             #fill = fct_rev(Dx), 
+#                             color = fct_rev(Dx)#, lty = fct_rev(Dx)
+#                             )) +
+#   geom_density(position = "identity", alpha = 0, adjust = 1/2) + 
+#   labs(x = "Chronological age", y = "Frequency") +
+#   scale_color_manual(name = "Diagnosis",
+#                      values = rev(c("#009E73", "gold3", "#D55E00")),
+#                      guide = guide_legend(reverse = TRUE,
+#                                           override.aes = list(alpha = 1))) + 
+  # scale_fill_manual(name = "Diagnosis",
+  #                    values = rev(c("#009E73", "gold3", "#D55E00")),
+  #                    guide = guide_legend(reverse = TRUE,
+  #                                         override.aes = list(alpha = 1))) + 
+  #theme_classic()
+
+
+
+# ggplot(data = pred_all, aes(x = ChronoAge, 
+#                             fill = NULL,
+#                             color = fct_rev(Dx)#, lty = fct_rev(Dx)
+#                             )) + 
+#   geom_histogram(bins = nclass.FD(pred_all$ChronoAge),
+#            position = "identity", size = 1.2, alpha = 0.33,
+#            fill="transparent"
+#            )+
+#   labs(x = "Chronological age", y = "Frequency") +
+#   scale_color_manual(name = "Diagnosis",
+#                      values = rev(c("#009E73", "gold3", "#D55E00")),
+#                      guide = guide_legend(reverse = TRUE,
+#                                           override.aes = list(alpha = 1,
+#                                                               size = 0.9))) + 
+#   theme_classic()
+
+# ggplot(data = pred_all, aes(x = ChronoAge,
+#                             fill = fct_rev(Dx)
+#                             )) +
+#   geom_histogram(bins = nclass.FD(pred_all$ChronoAge),
+#            position = "identity", size = 1.2, alpha = 0.33
+#            )+
+#   labs(x = "Chronological age", y = "Frequency") +
+#   scale_fill_manual(name = "Diagnosis",
+#                      values = rev(c("#009E73", "gold3", "#D55E00")),
+#                      guide = guide_legend(reverse = TRUE,
+#                                           override.aes = list(alpha = 1,
+#                                                               size = 0.9))) +
+#   theme_classic()
+
+
+# qplot(ChronoAge, data = pred_all, 
+#       fill = fct_rev(Dx),
+#       facets = Dx ~ ., bins = nclass.FD(pred_all$ChronoAge)) + 
+#     labs(x = "Chronological age", y = "Frequency", fill = "Diagnosis") +
+#     scale_fill_manual(values = rev(c("#009E73", "gold3", "#D55E00")),
+#                     guide = guide_legend(reverse = TRUE)) + 
+#   theme_classic()
+
+```
+
+```{r summary_age}
+kable(pred_all %>% 
+      group_by(Dx) %>% 
+      summarise(N = n(),
+            "Min." = min(ChronoAge),
+            "1st Qu." = quantile(ChronoAge, probs = 0.25),
+            "Median" = quantile(ChronoAge, probs = 0.5),
+            "Mean" = mean(ChronoAge),
+            "3rd Qu." = quantile(ChronoAge, probs = 0.75),
+            "Max." = max(ChronoAge))
+)
+```
+
+
+## Functional quantile regression
+
+```{r prediction, fig.width=6, fig.height=5}
+start_pred <- Sys.time()
+
+### Prediction on MCI and AD subjects
+
+train_PTID <- pred_all$PTID[pred_all$Dx == "Control"]  
+
+test_PTID <- pred_all$PTID[pred_all$Dx != "Control"] 
+
+fqr_prediction(train_sub = train_PTID, 
+               test_sub = test_PTID, 
+               pred_table = pred_all, return_func_coef = TRUE,
+               data_demo = data_ADNI_bl_817,
+               tau_levels = tau_lev)  %>% 
+  list2env(.,  envir = .GlobalEnv)
+
+pred_all <- pred_table
+
+### Prediction on control subjects - cross-validation
+
+k <- 10
+pred_N <- filter(pred_all, Dx == "Control")
+foldId <- cut(1:length(pred_N$PTID), breaks = k, labels=FALSE) %>% 
+  sample()
+table(foldId)
+
+cbind(pred_N, foldId = foldId) %>% 
+  group_by(foldId) %>% 
+  summarise(AGEMEAN = mean(ChronoAge), MIN = min(ChronoAge), MAX = max(ChronoAge))
+
+for(i in seq_len(k)){
+  print(i)
+  train_PTID <- pred_N$PTID[which(foldId != i)]  
+  test_PTID <- pred_N$PTID[which(foldId == i)]
+  pred_all <- fqr_prediction(train_sub = train_PTID, 
+                             test_sub = test_PTID, 
+                             pred_table = pred_all,
+                             data_demo = data_ADNI_bl_817,
+                             tau_levels = tau_lev)
+}
+
+end_pred <- Sys.time()
+
+```
+
+
+## Eigenfunctions
+
+```{r eFun, fig.width=5, fig.height=5}
+for (eig in 1:3){
+  cat("Eigenimage", eig)
+  basis_mat %*% -evec[,eig] %>%
+  slices.plot(.@x, voxels = voxel_grid_nonzero_mask)
+}
+```
+
+
+## Results
+
+```{r pred_results, fig.width=6, fig.height=5}
+###Prediction accuracy metrics###################################
+
+nonmonotonic_rows <- which(with(pred_all, AgePredMed < AgePredLower | AgePredMed > AgePredUpper))
+
+pred_all$OutPredInt <- with(pred_all, ChronoAge > AgePredUpper |  ChronoAge < AgePredLower)
+pred_all$OverPrediction <- with(pred_all, ChronoAge < AgePredLower)
+pred_all$brainPAD <- with(pred_all, AgePredMed - ChronoAge)
+
+
+p1 <- ggplot(pred_all, aes(x = AgePredMed, y = ChronoAge, color = fct_rev(Dx))) +
+  geom_point(alpha = 0.6) +
+  geom_smooth(aes(color = fct_rev(Dx), fill = fct_rev(Dx)), 
+              alpha = 0.2, size = 1.6) + 
+  #stat_smooth (geom="line", alpha=0.6, size=1.6) +
+  geom_abline(slope = 1, intercept = 0) +
+  theme_classic() +
+  labs(x =  "Predicted age", y= "Chronological age") +
+  scale_color_manual(name = "Diagnosis",
+                     values = rev(c("#009E73", "gold3", "#D55E00"))) +
+  scale_fill_manual(name = "Diagnosis",
+                    values = rev(c("#009E73", "gold3", "#D55E00")),
+                    guide = guide_legend(override.aes = list(alpha = 0.3))) +
+  guides(fill = guide_legend(reverse=TRUE), color = guide_legend(reverse=TRUE))
+
+
+
+
+
+
+#rib_data <- ggplot_build(p1)$data[[2]]
+#rib_data$Dx <-   levels(pred_all$Dx) %>% rev() %>% rep(., each = 80)
+
+#ggplot(data = pred_all, aes(x = AgePredMed, y = ChronoAge, color = fct_rev(Dx))) +
+  # geom_abline(slope = 1, intercept = 0) +
+  # geom_point(alpha = 0.5) +
+  # stat_smooth(alpha = 0, size = 2) +
+  # geom_line(data = rib_data, aes(x = x,y = ymax, color = factor(Dx)), inherit.aes = FALSE, linetype = 2, size = 1.2) +
+  # geom_line(data = rib_data, aes(x = x,y = ymin, color = factor(Dx)), inherit.aes = FALSE, linetype = 2, size = 1.2) +
+  # theme_classic() +
+  # labs(x = "Predicted age", y = "Chronological age") +
+  # scale_color_manual(name = "Diagnosis",
+  #                  values = rev(c("#009E73", "gold3", "#D55E00"))) #+
+## geom_ribbon(data=rib_data,aes(x=x,ymin=ymin,ymax=ymax, color = factor(Dx)), fill=NA,linetype=1, inherit.aes = FALSE, show.legend = FALSE)
+
+print(p1)
+
+
+ggplot(pred_all, aes(x = AgePredMed, y = brainPAD, color = fct_rev(Dx))) +
+    geom_point(alpha = 0.6) +
+    geom_smooth(aes(color = fct_rev(Dx), fill = fct_rev(Dx)), 
+                alpha = 0.2, size = 1.6) + 
+    geom_hline(yintercept = 0, lty = 2) +
+    theme_classic() +
+    labs(x =  "Predicted age", y= "brainPAD") +
+    scale_color_manual(name = "Diagnosis",
+                       values = rev(c("#009E73", "gold3", "#D55E00"))) +
+    scale_fill_manual(name = "Diagnosis",
+                      values = rev(c("#009E73", "gold3", "#D55E00")),
+                      guide = guide_legend(override.aes = list(alpha = 0.3))) +
+    guides(fill = guide_legend(reverse=TRUE), color = guide_legend(reverse=TRUE))
+
+tab_results <- pred_all %>% 
+  drop_na %>%
+  group_by(Dx) %>% 
+  summarise(N = n(),
+            "Age (min)" = min(ChronoAge),
+            "Age (max)" = max(ChronoAge),
+            MAE=mean(abs(AgePredMed- ChronoAge)), 
+            #weighted_MAE = mean(abs(AgePredMed- ChronoAge))/diff(range(ChronoAge)),
+            RMSE=sqrt(mean((AgePredMed- ChronoAge)^2)),
+            Cor = cor(AgePredMed,ChronoAge),
+            Cor_test = cor.test(AgePredMed,ChronoAge)$p.value,
+            Coverage = 1 - sum(OutPredInt)/n(),
+            OverPred = sum(OverPrediction)/n(),
+            Avg_Width = mean(abs(AgePredUpper - AgePredLower))) 
+
+hist_width <- pred_all %>% 
+  drop_na %>%
+  group_by(Dx) %>% 
+  summarise(Avg_Width = mean(abs(AgePredUpper - AgePredLower)))
+
+kable(tab_results)  ###, n = 1e3)
+
+#with(pred_all %>% drop_na, cor(brainPAD, ChronoAge,  method = "spearman"))
+
+#ddd <- BlandAltmanLeh::bland.altman.plot(pred_all$AgePredMed, pred_all$ChronoAge, graph.sys = "ggplot2")
+#ggplot_build(ddd)$data[[2]]
+```
+
+The $\lambda$ value for which the minimum is attained is `r lambda_min`. The number of subjects for which the interval is not valid (that is, the case when the lower extreme is higher than the upper one) is `r length(nonmonotonic_rows)`.
+
+
+## Functional regression coefficients
+
+```{r func_coef_med, fig.width=5, fig.height=5, eval = TRUE}
+func_coef_voxel_nonzero <- basis_mat %*% evec  %*% model_med_coef
+slices.plot(func_coef_voxel_nonzero@x, voxels = voxel_grid_nonzero_mask)
+```
+
+### Lower 
+
+```{r func_coef_lower, fig.width=5, fig.height=5, eval = TRUE}
+func_coef_voxel_nonzero <- basis_mat %*% evec  %*% model_lower_coef
+slices.plot(func_coef_voxel_nonzero@x, voxels = voxel_grid_nonzero_mask)
+```
+
+### Upper
+
+```{r func_coef_upper, fig.width=5, fig.height=5, eval = TRUE}
+func_coef_voxel_nonzero <- basis_mat %*% evec  %*% model_upper_coef
+slices.plot(func_coef_voxel_nonzero@x, voxels = voxel_grid_nonzero_mask)
+```
+
+
+## Prediction intervals plot
+
+```{r PIplot, fig.width=5, fig.height=10}
+data_forest_center <- pred_all%>% 
+  arrange(. ,Dx, AgePredMed) %>% 
+  group_by(Dx) %>% 
+  mutate(id = row_number())
+
+labs_PIplot <- pred_all %>% 
+  group_by(Dx) %>% 
+  summarise(N = n()) %>% 
+  unite(., sep = " (N = ") %>%
+  simplify() %>%
+  paste0(.,")")
+
+
+data_forest_center$Dx <- ordered(data_forest_center$Dx, 
+                                 levels = c("Control", "MCI", "AD"), 
+                                 labels = labs_PIplot)
+
+data_forest_center[,1:3] <- data_forest_center[,1:3]- data_forest_center$ChronoAge
+excesspoints <- filter(data_forest_center, OutPredInt == TRUE) %>%
+  select(AgePredLower, Dx, id)
+excesspoints$x <- 30*sign(excesspoints$AgePredLower)
+
+pred_interval <- list(data_forest_center = data_forest_center, 
+                      excesspoints = excesspoints,
+                      tau = 1:3/4)
+
+forest.rq.plot(pred.interval=pred_interval, mycol = c("#009E73", "gold3", "#D55E00"))
+```
+
+```{r PIwidth, fig.width=6, fig.height=5}
+ggplot(pred_all,
+       aes(x=abs(AgePredUpper - AgePredLower), color=  fct_rev(Dx))) + 
+  stat_bin(geom="step",
+           direction="vh",
+           bins = 10,
+           position = "identity", size = 1.2, alpha = 0.5, pad = TRUE
+           )+
+  labs(x = "Prediction intervals width (years)", y = "Frequency", color = "Diagnosis") +  
+  scale_color_manual(name = "Diagnosis",
+                     values = rev(c("#009E73", "gold3", "#D55E00")),
+                     guide = guide_legend(reverse = TRUE,
+                                          override.aes = list(alpha = 1,
+                                                              size = 0.9))) + 
+  theme_classic(base_size = 18) +
+  geom_hline(yintercept = 0, colour = "white", size = 1.5) +
+  expand_limits(y = 0) +
+  scale_y_continuous(expand = c(0, 0))
+
+
+ggplot(pred_all,
+       aes(x=abs(AgePredUpper - AgePredLower), color=Dx)) + 
+  geom_density(alpha=0.4) +
+  labs(x = "Prediction intervals width (years)", y = "Density", color = "Diagnosis") +
+  scale_color_manual(values=c("#009E73", "gold3", "#D55E00")) +
+  xlim(5,22) + 
+  theme_classic(base_size = 18)+
+  expand_limits(y = 0) +
+  scale_y_continuous(expand = c(0, 0))
+
+
+```
+
+```{r overpred_plot, fig.width=6, fig.height=5}
+# ggplot(pred_all, aes(x = pred_all$ChronoAge, fill = OverPrediction, color = OverPrediction)) + 
+#   geom_histogram(position = "stack", bins = nclass.FD(pred_all$ChronoAge)) +
+#   labs(x = "Chronological age", y = "Frequency") +
+#   scale_fill_grey(start=1, end=0.3) +  
+#   scale_color_grey(start=0, end=0) + 
+#   theme_classic(base_size = 18) +
+#   theme(legend.position = "none")
+
+
+# 
+# ggplot(pred_all,
+#        aes(x = pred_all$ChronoAge,
+#            fill = OverPrediction, color = OverPrediction
+#            )) + 
+#   stat_density(aes(fill = OverPrediction, alpha = 0.5),
+#                position = "identity")
+
+
+ggplot(data = pred_all, aes(x = ChronoAge, 
+                            color = OverPrediction)) + 
+  stat_bin(geom="step", bins = nclass.FD(pred_all$ChronoAge),
+           position = "identity", size = 1.2,
+           alpha = 0.5, 
+           direction = "vh", pad = TRUE)+
+  labs(x = "Chronological age", y = "Frequency", colour = "Overprediction") +
+  theme_classic(base_size = 18)  + 
+  theme(legend.key.size = unit(1, "cm")) +
+  geom_hline(yintercept = 0, colour = "white", size = 1.5) + 
+  guides(colour = guide_legend(override.aes = list(alpha = 1)))+
+  expand_limits(y = 0) +
+  scale_y_continuous(expand = c(0, 0))
+
+```
+
+
+## Correlation with cognitive decline
+
+```{r adnimerge_data, fig.width=6, fig.height=5}
+library("ADNIMERGE", lib.loc="ADNIMERGE")
+
+dxsum_myPTID <-  dxsum[,c(3, 5, 8, 33)]
+dxsum_myPTID$PTID_reduced <-  paste0("S_", stringr::str_pad(dxsum_myPTID$RID, 4, pad = 0))
+
+
+VISC <- unique(dxsum_myPTID$VISCODE)
+
+VISC_periods <- startsWith(as.character(VISC), "m") %>% VISC[.] %>% substring(., 2) %>%
+  as.integer %>% sort %>% str_pad(., width = 2, pad = 0) %>%
+  paste0("m",.) #%>% ordered(., levels = ., labels = .)
+
+
+#http://adni.loni.usc.edu/data-dictionary-search/?q=APOE4
+
+VISC <- ordered(VISC, levels = c("bl", VISC_periods))   %>% na.omit %>% sort
+VARS <- c("APOE4", "ADAS11", "ADAS13", "ADASQ4", 
+          "MMSE", "DIGITSCOR", "TRABSCOR")
+
+
+VARS <- adnimerge %>% select("APOE4", "ADAS11", "ADAS13", "ADASQ4", 
+                             "MMSE", "DIGITSCOR", "TRABSCOR"
+                             #,starts_with("RAVLT"), -ends_with(".bl")
+                             ) %>% names()
+
+VISC_selected <- c("bl", "m12", "m24", "m36", "m48") #labels = c("Baseline", "12", "24","36","48")) 
+                         
+
+validation_table <- cbind(expand.grid(VARS, VISC_selected), "brainPAD_corr" = NA,
+                          "brainPAD_corr_pvalue" = NA, "OverPred_pvalue" = NA)
+names(validation_table)[1:2] <- c("VARS", "VISC")
+
+
+###APOE at baseline
+
+pred_all$PTID_reduced <- unlist(strsplit(pred_all$PTID, "S_")) %>%
+    .[seq(2, 2*length(pred_all$PTID),by = 2)] %>%
+    substr(., start = 1, stop = 4) %>%
+    paste0("S_", .)
+  
+
+
+for(i in 1:length(VISC_selected)){
+  adnimerge_sub <- adnimerge %>% 
+    filter(VISCODE == VISC_selected[i])
+  
+  adnimerge_sub$PTID_reduced <- paste0("S_", 
+                                       stringr::str_pad(adnimerge_sub$RID, 4, pad = 0))
+  
+  adnimerge_sub <- left_join(pred_all,adnimerge_sub[,-c(1:9)], by= "PTID_reduced") %>%
+    dplyr::select(OverPrediction, brainPAD, VARS)
+  
+
+  index1 <- (i - 1)*length(VARS) + 1
+  validation_table[index1:(index1+length(VARS)-1), 3:4] <-
+    sapply(select(adnimerge_sub, VARS),
+           function(x) as.numeric(cor.test(x, adnimerge_sub$brainPAD)[c("estimate","p.value")])
+    ) %>% t()
+  
+  validation_table[index1:(index1+length(VARS)-1), 5] <-
+    sapply(select(adnimerge_sub, VARS),
+           function(y) 
+             t.test(y ~ adnimerge_sub$OverPrediction, alternative = "two.sided")$statistic
+  )
+  
+  if(i == 1){
+    print(with(adnimerge_sub, chisq.test(OverPrediction, APOE4)))
+    
+
+
+    anno_df <- compare_means(brainPAD ~ APOE4,  data = adnimerge_sub,
+                             method = "wilcox.test",
+                             alternative = "greater",
+                             p.adjust.method = "holm") %>%
+      mutate(y_pos = 40, p.adj = base::format.pval(p.adj))
+    p1 <- ggboxplot(adnimerge_sub, x = "APOE4", y = "brainPAD", 
+                    select = c("0","1","2"),
+                    color = "APOE4",
+                    palette = RColorBrewer::brewer.pal(9,"Set1")[c(7,4,9)]) + 
+      geom_signif(data=anno_df, 
+        aes(xmin = group1, xmax = group2, annotations = paste0("p = ", p.adj), 
+            y_position = c(25, 34, 29)), manual= TRUE)+ 
+      ylim(c(NA, 35)) +
+      theme_classic2(base_size = 18) +
+      theme(legend.position = "none") + 
+      labs(x = "ApoE4")
+    #print(p1)
+    #cat("-------------------------------------------------------------------\n")
+  }
+  
+}
+
+print(p1)
+
+plot_brainPAD <- validation_table %>% 
+  drop_na %>% 
+  filter(VARS != "APOE4") %>% 
+  ggplot(aes(factor(VISC), brainPAD_corr, color = VARS)) +
+  geom_point(aes(shape=
+                   ifelse(brainPAD_corr_pvalue<0.05,
+                          "Significant", "Not significant")), size = 2) +
+  scale_shape_manual(values=c(1, 19)) +
+  scale_color_brewer(palette = "Dark2") + 
+  geom_line(aes(group = VARS)) + 
+  #ylim(c(-0.25,0.25)) +
+  theme_classic(base_size = 14) +
+  #theme(legend.key.size = unit(0, "lines")) +
+  labs(x = "Visit code (months)", y = "Correlation with brainPAD", 
+       color = "Variables", shape = "Significance (5%)") 
+
+
+plot_OverPred <- validation_table %>% 
+  drop_na %>% 
+  filter(VARS != "APOE4") %>% 
+  ggplot(aes(factor(VISC), OverPred_pvalue, color = VARS)) +
+  geom_hline(yintercept = c(-1.96, 1.96), lty = 2) + 
+  geom_point(aes(shape=ifelse(abs(OverPred_pvalue)<1.96,
+                              "Not significant", "Significant")), 
+             size = 2) +
+  scale_shape_manual(values=c(1, 19)) +
+  scale_color_brewer(palette = "Dark2") + 
+  geom_line(aes(group = VARS)) + 
+  #ylim(c(0,1)) +
+  theme_classic(base_size = 14) +
+  labs(x = "Visit code (months)", y = "t-statistic (overprediction)", 
+     color = "Variables", shape = "Significance (5%)") 
+
+
+
+legend_brainPAD <- get_legend(plot_brainPAD)
+
+prow <- cowplot::plot_grid(plot_brainPAD +
+                             theme(legend.position="none",
+                                   axis.text.x=element_blank(),
+                                   axis.title.x=element_blank(),
+                                   axis.ticks.x=element_blank(),
+                                   plot.margin=margin(c(0.1, 0, 0, 0), unit="cm")),
+                           NULL,
+                  plot_OverPred + theme(legend.position="none",
+                                        plot.margin=margin(c(0, 0, 0, 0), unit="pt")),
+                  align = 'hv', ncol = 1,
+                  rel_heights = c(1,-0.1,1), 
+                  labels=c("A",NA,"B"), label_x = 0.022)
+
+#pdf("validationplot.pdf",width=5,height=5,paper='special')
+cowplot::plot_grid(prow, NULL, legend_brainPAD, nrow = 1, rel_widths = c(0.8,0.1,0.4), axis = "b")
+#dev.off()
+
+```
+
+```{r PAC_competition, eval = FALSE, echo = FALSE}
+
+#mask_fname <- "/storage/u1560346/PAC2019/MNI152_T1_1.5mm_brain_mask_dil.nii.gz"
+#mask_fname <- "PAC_data/MNI152_T1_1.5mm_brain_mask_dil.nii.gz"
+
+
+#mask <- oro.nifti::readNIfTI("PAC_data/MNI152_T1_1.5mm_brain_mask_dil.nii.gz")
+#aaa <- get_basis_coef(img_path, mask, 
+#                voxel_grid_nonzero_mask,
+#                design_mat = basis_mat)
+
+#data_projected_train <- data.table::fread("data_projected_train.dat") %>%
+#  data.frame(., row.names = 1)
+#data_projected_test <- data.table::fread("data_projected_test.dat") %>%
+#  data.frame(., row.names = 1)
+
+train_sub <- rownames(data_projected_train)
+test_sub <- rownames(data_projected_test)
+coef_data <- data_projected_train  %>% scale(scale = F)
+FPCA_mat <-  Matrix::tcrossprod(coef_data, basis_W_half)/sqrt(nrow(coef_data)-1)  
+
+system.time(tmpSVD <- svd(FPCA_mat, nu = 0, nv = 50))
+values <- tmpSVD$d^2 
+plot(values, ylim = c(0, max(values)+100), main = "Screeplot", type = "b")
+
+ncomp <- which(cumsum(values)/sum(values) >= pve_threshold)[1]
+vectors <- Matrix::solve(basis_W_half, tmpSVD$v[, 1:ncomp])  
+
+
+scores_mat <- t(apply(rbind(data_projected_train, data_projected_test), 1, function(x){x - colMeans(data_projected_train)})) %*% int_mat %*% vectors %>%  
+  as.matrix() 
+
+
+scores_mat <- rbind(data_projected_train, data_projected_test) %>%
+  data.matrix(.) %>%
+  sweep(., 2, colMeans(data_projected_train)) %>%
+  #apply(., 1, function(x){x - colMeans(data_projected_train)}) %>%
+  magrittr::multiply_by_matrix(.,int_mat) %*% vectors %>% 
+  as.matrix() 
+
+
+PAC_train <- read_csv("C:/Users/Asus/Downloads/PAC2019_BrainAge_Training.csv")
+
+regr_data <- scores_mat %>% 
+  as.data.frame(.) %>%
+  tibble::rownames_to_column(., var = "subject_ID") %>%
+  right_join(PAC_train[,1:2], ., by =  "subject_ID", keep = FALSE) %>%
+  tibble::column_to_rownames(., "subject_ID")
+
+fit2forest <- quantreg::rq(age ~ ., tau = 0.5, data = regr_data[train_sub,])
+pred_test <- data.frame("subj_id" = test_sub, "age" = predict(fit2forest, newdata = regr_data[test_sub,-1], type = "Qhat", stepfun = F))
+
+write.csv(pred_test, "PACpred_QR2.csv", row.names = FALSE)
+
+
+# model_lower <- rqPen::cv.rq.pen(x=as.matrix(regr_train[,-1]),
+#                                 y=regr_train$age, 
+#                                 tau = tau_lev[1], 
+#                                 method = "fn", 
+#                                 penalty="LASSO")
+model_med <- rqPen::rq.lasso.fit(x=as.matrix(regr_data[train_sub,-1]),
+                              y=regr_data[train_sub,]$age,
+                              tau = tau_lev[2], lambda = 1)
+# model_upper <- rqPen::cv.rq.pen(x=as.matrix(regr_train[,-1]),
+#                                 y=regr_train$age, 
+#                                 tau = tau_lev[3], method = "fn",
+#                                 penalty="LASSO")
+# 
+# 
+#   # pred_test[, 1] <- model_lower %>% predict(newx = as.matrix(test.data[, -1]))
+pred_test <- model_med %>% predict(newx = as.matrix(regr_data[test_sub,-1]))
+#   # pred_test[, 3] <- model_upper %>% predict(newx = as.matrix(test.data[, -1]))
+  
+  
+
+```
