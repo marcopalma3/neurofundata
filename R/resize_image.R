@@ -1,25 +1,22 @@
-#' Illustration of crayon colors
+#' Select active areas within a mask
 #'
-#' Creates a plot of the crayon colors in \code{\link{brocolors}}
+#' Select the part of the image within the mask. 
 #'
-#' @param method2order method to order colors (\code{"hsv"} or \code{"cluster"})
-#' @param cex character expansion for the text
-#' @param mar margin parameters; vector of length 4 (see \code{\link[graphics]{par}})
+#' @param mask path of the mask file
+#' @param img path of the image file
 #'
-#' @return None
+#' @return A list with the following elements
+#' \describe{
+#'   \item{array}{array containing voxels within the mask}
+#'   \item{original_coord}{coordinates of the limits of the mask with respect to the original size of the image}
+#' }
 #'
-#' @author Karl W Broman, \email{broman@@wisc.edu}
-#' @references \url{http://en.wikipedia.org/wiki/List_of_Crayola_crayon_colors}
-#' @seealso \code{\link{brocolors}}
-#' @keywords hplot
-#'
-#' @examples
-#' plot_crayons()
+#' @author Marco Palma, \email{M.Palma@@warwick.ac.uk}
+#' @keywords resize_image
 #'
 #' @export
-#' @importFrom grDevices rgb2hsv
-#' @importFrom graphics par plot rect text
-#'
+
+
 resize_image <- function(mask, img = mask){
   mask <- drop(mask)
   img <- drop(img)

@@ -14,10 +14,10 @@ calc_projection_Bspl(knot_space, mask_fname)
 \value{
 A list with the following elements
 \describe{
-  \item{basis_mat}{}
+  \item{basis_mat}{Matrix of basis functions (each basis is vectorised in one column of the matrix)}
   \item{voxel_grid_nonzero_mask}{}
-  \item{dims_mask}{}
-  \item{mask_subset}{First item}
+  \item{dims_mask}{dimensions of the mask}
+  \item{mask_subset}{active area within the mask}
 }
 }
 \description{

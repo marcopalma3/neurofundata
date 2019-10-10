@@ -1,6 +1,6 @@
 #' Bspline projection of 3D images
 #'
-#' Creates a design matrix from an isotropic tensor product of Bsplines only 
+#' Create a design matrix from an isotropic tensor product of Bsplines only 
 #' for voxels within a mask. 
 #'
 #' @param knot_space space between consecutive knots (in mm, equal for each dimension)
@@ -8,10 +8,10 @@
 #'
 #' @return A list with the following elements
 #' \describe{
-#'   \item{basis_mat}{}
-#'   \item{voxel_grid_nonzero_mask}{}
-#'   \item{dims_mask}{}
-#'   \item{mask_subset}{First item}
+#'   \item{basis_mat}{Matrix of basis functions (each basis is vectorised in one column of the matrix)}
+#'   \item{voxel_grid_nonzero_mask}{indices of voxels within the mask}
+#'   \item{dims_mask}{dimensions of the mask}
+#'   \item{mask_subset}{resized mask}
 #' }
 #'
 #' @author Marco Palma, \email{M.Palma@@warwick.ac.uk}

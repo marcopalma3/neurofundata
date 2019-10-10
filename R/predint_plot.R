@@ -1,32 +1,29 @@
-#' Illustration of crayon colors
+#' Prediction intervals for functional quantile regression
 #'
-#' Creates a plot of the crayon colors in \code{\link{brocolors}}
+#' Return point predictions and prediction intervals for functional 
+#' scalar-on-image quantile regression and outputs from FPCA.
 #'
-#' @param method2order method to order colors (\code{"hsv"} or \code{"cluster"})
-#' @param cex character expansion for the text
-#' @param mar margin parameters; vector of length 4 (see \code{\link[graphics]{par}})
+#' @param pred_interval rownames of \code{data_projected_name} used to fit the FPCA  
+#' @param col rownames of \code{data_projected_name} for which to get the FPCA scores
+#' @param xlab_input text file with the smoothing projections for each statistical unit
+#' @param ylab_input demographic data with the scalar outcome of interest
 #'
-#' @return None
-#'
-#' @author Karl W Broman, \email{broman@@wisc.edu}
-#' @references \url{http://en.wikipedia.org/wiki/List_of_Crayola_crayon_colors}
-#' @seealso \code{\link{brocolors}}
-#' @keywords hplot
-#'
-#' @examples
-#' plot_crayons()
+#' @author Marco Palma, \email{M.Palma@@warwick.ac.uk}
+#' @keywords FPCA
 #'
 #' @export
-#' @importFrom grDevices rgb2hsv
-#' @importFrom graphics par plot rect text
-#'
+#' @importFrom data.table fread
+#' @importFrom Matrix crossprod chol
+#' @importFrom spam kronecker
+
+
 predint_plot <- function(pred_interval,
-                         mycol = c("#009E73", "gold3", "#D55E00"),
+                         col = c("#009E73", "gold3", "#D55E00"),
                          xlab_input = "Difference from chronological age",
                          ylab_input = "Subjects") {
 
   data_forest_center <- pred_interval$data_forest_center
-  #mycol <- mycol[as.numeric(data_forest_center$Dx)]
+  #col <- mycol[as.numeric(data_forest_center$Dx)]
   excesspoints <- pred_interval$excesspoints
   #pal <- c("#009E73", "gold3", "#D55E00")
 
@@ -37,7 +34,7 @@ predint_plot <- function(pred_interval,
              xmax = AgePredUpper,
              colour = Dx))+
     geom_point(cex = 0.5)+
-    scale_colour_manual(values = mycol) +
+    scale_colour_manual(values = col) +
     ggExtra::removeGridY() +
     theme(axis.ticks.y = element_blank(),
           axis.text.y = element_blank(),

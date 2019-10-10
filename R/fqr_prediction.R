@@ -1,28 +1,44 @@
-#' Illustration of crayon colors
+#' Prediction intervals for functional quantile regression
 #'
-#' Creates a plot of the crayon colors in \code{\link{brocolors}}
+#' Return point predictions and prediction intervals for functional 
+#' scalar-on-image quantile regression and outputs from FPCA.
 #'
-#' @param method2order method to order colors (\code{"hsv"} or \code{"cluster"})
-#' @param cex character expansion for the text
-#' @param mar margin parameters; vector of length 4 (see \code{\link[graphics]{par}})
+#' @param train_sub rownames of \code{data_projected_name} used to fit the FPCA  
+#' @param test_sub rownames of \code{data_projected_name} for which to get the FPCA scores
+#' @param data_projected_name text file with the smoothing projections for each statistical unit
+#' @param data_demo demographic data with the scalar outcome of interest
+#' @param pred_table table with predictions for each statistical unit
+#' @param qr_pen penalty type for quantile regression
+#' @param qr_postLASSO refit quantile regression with LASSO selected variables? 
+#' @param lambda lambda parameter for penalised quantile regression
+#' @param tau_levels quantiles for which quantile regression is fitted
+#' @param return_func_coef return the functional coefficient?
 #'
-#' @return None
+#' @return A list with the following elements
+#' \describe{
+#'   \item{pred_table}{table with predictions for each statistical unit}
+#'   \item{no_fpc}{number of functional principal components selected}
+#'   \item{evec}{Eigenimages}
+#'   \item{model_med_coef}{Regression coefficient from median regression}
+#'   \item{model_lower_coef}{Regression coefficient from regression with lower quantile}
+#'   \item{model_upper_coef}{Regression coefficient from regression with lower quantile}
+#'   \item{lambda_min}{Value of \code{lambda} for which \code{model_med_coef} is extracted}
+#' }
 #'
-#' @author Karl W Broman, \email{broman@@wisc.edu}
-#' @references \url{http://en.wikipedia.org/wiki/List_of_Crayola_crayon_colors}
-#' @seealso \code{\link{brocolors}}
-#' @keywords hplot
-#'
-#' @examples
-#' plot_crayons()
+#' @author Marco Palma, \email{M.Palma@@warwick.ac.uk}
+#' @keywords FPCA
 #'
 #' @export
-#' @importFrom grDevices rgb2hsv
-#' @importFrom graphics par plot rect text
-#'
-fqr_prediction <-  function(train_sub,
+#' @importFrom data.table fread
+#' @importFrom Matrix crossprod chol
+#' @importFrom spam kronecker
+
+
+fqr_prediction <-  function(data_projected_name,
+                            train_sub,
                             test_sub,
                             data_demo,
+                            pve_threshold,
                             pred_table,
                             qr_pen = "LASSO",
                             qr_postLASSO = FALSE,
@@ -133,7 +149,6 @@ fqr_prediction <-  function(train_sub,
         model_lower_coef = as(model_lower_coef, "sparseMatrix"),
         model_upper_coef = as(model_upper_coef, "sparseMatrix"),
         lambda_min = lambda_min_med,
-        no_comp = ncomp
       )
     )
 }
