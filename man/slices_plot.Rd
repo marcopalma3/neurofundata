@@ -8,6 +8,7 @@ slices_plot(
   image_vec,
   mask = mask,
   dims = dims_mask,
+  img_template = img_template,
   voxels,
   col_threshold = 0,
   legend_range = range(image_vec),
@@ -18,7 +19,11 @@ slices_plot(
 \arguments{
 \item{image_vec}{vectorised image values}
 
+\item{mask}{original mask image}
+
 \item{dims}{image dimensions}
+
+\item{img_template}{minimal deformation template (for TBM images)}
 
 \item{voxels}{voxels indices within the mask (it must have the same dimensions as image_vec)}
 

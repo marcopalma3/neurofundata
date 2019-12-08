@@ -3,7 +3,9 @@
 #' Select the part of the image within the mask. 
 #'
 #' @param image_vec vectorised image values
+#' @param mask original mask image
 #' @param dims image dimensions
+#' @param img_template minimal deformation template (for TBM images)
 #' @param voxels voxels indices within the mask (it must have the same dimensions as image_vec)
 #' @param col_threshold midpoint in the divergent colour scale
 #' @param legend_range extremes of the divergent colour scale
@@ -18,6 +20,7 @@
 slices_plot <- function(image_vec,
                         mask = mask,
                         dims = dims_mask,
+                        img_template = img_template,
                         voxels,
                         col_threshold = 0,
                         legend_range = range(image_vec),
