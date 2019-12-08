@@ -2,34 +2,21 @@
 % Please edit documentation in R/gg_color_hue.R
 \name{gg_color_hue}
 \alias{gg_color_hue}
-\title{Illustration of crayon colors}
+\title{Colour palette}
 \usage{
 gg_color_hue(n)
 }
 \arguments{
-\item{method2order}{method to order colors (\code{"hsv"} or \code{"cluster"})}
-
-\item{cex}{character expansion for the text}
-
-\item{mar}{margin parameters; vector of length 4 (see \code{\link[graphics]{par}})}
-}
-\value{
-None
+\item{n}{number of colours}
 }
 \description{
-Creates a plot of the crayon colors in \code{\link{brocolors}}
+Create colour palette with equidistant hues.
 }
 \examples{
-plot_crayons()
+gg_color_hue(3)
 
 }
-\references{
-\url{http://en.wikipedia.org/wiki/List_of_Crayola_crayon_colors}
-}
-\seealso{
-\code{\link{brocolors}}
-}
 \author{
-Karl W Broman, \email{broman@wisc.edu}
+Marco Palma, \email{M.Palma@warwick.ac.uk}
 }
-\keyword{hplot}
+\keyword{gg_color_hue}

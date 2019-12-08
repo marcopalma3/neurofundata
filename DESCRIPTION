@@ -14,4 +14,4 @@ LazyData: true
 Imports: fields, fda, oro.nifti, spam, knitr, rqPen, quantreg, stringr, dplyr, magrittr
 Suggests: RMarkdown
 VignetteBuilder: knitr
-RoxygenNote: 6.1.1
+RoxygenNote: 7.0.2

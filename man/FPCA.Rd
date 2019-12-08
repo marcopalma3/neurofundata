@@ -2,36 +2,41 @@
 % Please edit documentation in R/FPCA.R
 \name{FPCA}
 \alias{FPCA}
-\title{Illustration of crayon colors}
+\title{Functional principal component analysis}
 \usage{
-FPCA(basis_mat, knot_space,
+FPCA(
+  basis_mat,
+  knot_space,
   data_projected_name = paste0("data_projected_", knot_space, "mm.dat"),
-  train_sub, test_sub)
+  train_sub,
+  test_sub
+)
 }
 \arguments{
-\item{method2order}{method to order colors (\code{"hsv"} or \code{"cluster"})}
+\item{basis_mat}{matrix of basis functions (each basis is vectorised in one column of the matrix)}
 
-\item{cex}{character expansion for the text}
+\item{knot_space}{space between consecutive knots (in mm, equal for each dimension)}
 
-\item{mar}{margin parameters; vector of length 4 (see \code{\link[graphics]{par}})}
+\item{data_projected_name}{text file with the smoothing projections for each statistical unit}
+
+\item{train_sub}{rownames of \code{data_projected_name} used to fit the FPCA}
+
+\item{test_sub}{rownames of \code{data_projected_name} for which to get the FPCA scores}
+
+\item{pve_threshold}{proportion of variance explained}
 }
 \value{
-None
+A list with the following elements
+\describe{
+  \item{scores}{Scores matrix (each row is for one statistical unit)}
+  \item{eFuns}{Eigenimages (vectorised on each column)}
+  \item{eVals}{Eigenvalues}
+}
 }
 \description{
-Creates a plot of the crayon colors in \code{\link{brocolors}}
-}
-\examples{
-plot_crayons()
-
-}
-\references{
-\url{http://en.wikipedia.org/wiki/List_of_Crayola_crayon_colors}
-}
-\seealso{
-\code{\link{brocolors}}
+Return eigenimages, eigenvectors and scores.
 }
 \author{
-Karl W Broman, \email{broman@wisc.edu}
+Marco Palma, \email{M.Palma@warwick.ac.uk}
 }
-\keyword{hplot}
+\keyword{FPCA}

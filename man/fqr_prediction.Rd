@@ -2,36 +2,58 @@
 % Please edit documentation in R/fqr_prediction.R
 \name{fqr_prediction}
 \alias{fqr_prediction}
-\title{Illustration of crayon colors}
+\title{Prediction intervals for functional quantile regression}
 \usage{
-fqr_prediction(train_sub, test_sub, data_demo, pred_table,
-  qr_pen = "LASSO", qr_postLASSO = FALSE, lambda = NULL, tau_levels,
-  return_func_coef = FALSE)
+fqr_prediction(
+  train_sub,
+  test_sub,
+  data_demo,
+  pred_table,
+  qr_pen = "LASSO",
+  qr_postLASSO = FALSE,
+  lambda = NULL,
+  tau_levels,
+  return_func_coef = FALSE
+)
 }
 \arguments{
-\item{method2order}{method to order colors (\code{"hsv"} or \code{"cluster"})}
+\item{train_sub}{rownames of \code{data_projected_name} used to fit the FPCA}
 
-\item{cex}{character expansion for the text}
+\item{test_sub}{rownames of \code{data_projected_name} for which to get the FPCA scores}
 
-\item{mar}{margin parameters; vector of length 4 (see \code{\link[graphics]{par}})}
+\item{data_demo}{demographic data with the scalar outcome of interest}
+
+\item{pred_table}{table with predictions for each statistical unit}
+
+\item{qr_pen}{penalty type for quantile regression}
+
+\item{qr_postLASSO}{refit quantile regression with LASSO selected variables?}
+
+\item{lambda}{lambda parameter for penalised quantile regression}
+
+\item{tau_levels}{quantiles for which quantile regression is fitted}
+
+\item{return_func_coef}{return the functional coefficient?}
+
+\item{data_projected_name}{text file with the smoothing projections for each statistical unit}
 }
 \value{
-None
+A list with the following elements
+\describe{
+  \item{pred_table}{table with predictions for each statistical unit}
+  \item{no_fpc}{number of functional principal components selected}
+  \item{evec}{Eigenimages}
+  \item{model_med_coef}{Regression coefficient from median regression}
+  \item{model_lower_coef}{Regression coefficient from regression with lower quantile}
+  \item{model_upper_coef}{Regression coefficient from regression with lower quantile}
+  \item{lambda_min}{Value of \code{lambda} for which \code{model_med_coef} is extracted}
+}
 }
 \description{
-Creates a plot of the crayon colors in \code{\link{brocolors}}
-}
-\examples{
-plot_crayons()
-
-}
-\references{
-\url{http://en.wikipedia.org/wiki/List_of_Crayola_crayon_colors}
-}
-\seealso{
-\code{\link{brocolors}}
+Return point predictions and prediction intervals for functional 
+scalar-on-image quantile regression and outputs from FPCA.
 }
 \author{
-Karl W Broman, \email{broman@wisc.edu}
+Marco Palma, \email{M.Palma@warwick.ac.uk}
 }
-\keyword{hplot}
+\keyword{FPCA}

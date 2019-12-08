@@ -15,13 +15,13 @@ calc_projection_Bspl(knot_space, mask_fname)
 A list with the following elements
 \describe{
   \item{basis_mat}{Matrix of basis functions (each basis is vectorised in one column of the matrix)}
-  \item{voxel_grid_nonzero_mask}{}
+  \item{voxel_grid_nonzero_mask}{indices of voxels within the mask}
   \item{dims_mask}{dimensions of the mask}
-  \item{mask_subset}{active area within the mask}
+  \item{mask_subset}{resized mask}
 }
 }
 \description{
-Creates a design matrix from an isotropic tensor product of Bsplines only 
+Create a design matrix from an isotropic tensor product of Bsplines only 
 for voxels within a mask.
 }
 \author{

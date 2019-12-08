@@ -2,36 +2,35 @@
 % Please edit documentation in R/slices_plot.R
 \name{slices_plot}
 \alias{slices_plot}
-\title{Illustration of crayon colors}
+\title{Select active areas within a mask}
 \usage{
-slices_plot(image_vec, dims = dims_mask,
-  voxels = results$voxel_grid_nonzero_mask, col_threshold = 0,
-  legend_range = range(image_vec), slice_number = FALSE, ...)
+slices_plot(
+  image_vec,
+  dims,
+  voxels,
+  col_threshold = 0,
+  legend_range = range(image_vec),
+  slice_number = FALSE,
+  ...
+)
 }
 \arguments{
-\item{method2order}{method to order colors (\code{"hsv"} or \code{"cluster"})}
+\item{image_vec}{vectorised image values}
 
-\item{cex}{character expansion for the text}
+\item{dims}{image dimensions}
 
-\item{mar}{margin parameters; vector of length 4 (see \code{\link[graphics]{par}})}
-}
-\value{
-None
+\item{voxels}{voxels indices within the mask (it must have the same dimensions as image_vec)}
+
+\item{col_threshold}{midpoint in the divergent colour scale}
+
+\item{legend_range}{extremes of the divergent colour scale}
+
+\item{slice_number}{add a note about the slices number in the array}
 }
 \description{
-Creates a plot of the crayon colors in \code{\link{brocolors}}
-}
-\examples{
-plot_crayons()
-
-}
-\references{
-\url{http://en.wikipedia.org/wiki/List_of_Crayola_crayon_colors}
-}
-\seealso{
-\code{\link{brocolors}}
+Select the part of the image within the mask.
 }
 \author{
-Karl W Broman, \email{broman@wisc.edu}
+Marco Palma, \email{M.Palma@warwick.ac.uk}
 }
-\keyword{hplot}
+\keyword{slices_plot}

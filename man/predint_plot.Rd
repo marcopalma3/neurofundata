@@ -2,36 +2,29 @@
 % Please edit documentation in R/predint_plot.R
 \name{predint_plot}
 \alias{predint_plot}
-\title{Illustration of crayon colors}
+\title{Prediction intervals for functional quantile regression}
 \usage{
-predint_plot(pred_interval, mycol = c("#009E73", "gold3", "#D55E00"),
+predint_plot(
+  pred_interval,
+  col = c("#009E73", "gold3", "#D55E00"),
   xlab_input = "Difference from chronological age",
-  ylab_input = "Subjects")
+  ylab_input = "Subjects"
+)
 }
 \arguments{
-\item{method2order}{method to order colors (\code{"hsv"} or \code{"cluster"})}
+\item{pred_interval}{rownames of \code{data_projected_name} used to fit the FPCA}
 
-\item{cex}{character expansion for the text}
+\item{col}{rownames of \code{data_projected_name} for which to get the FPCA scores}
 
-\item{mar}{margin parameters; vector of length 4 (see \code{\link[graphics]{par}})}
-}
-\value{
-None
+\item{xlab_input}{text file with the smoothing projections for each statistical unit}
+
+\item{ylab_input}{demographic data with the scalar outcome of interest}
 }
 \description{
-Creates a plot of the crayon colors in \code{\link{brocolors}}
-}
-\examples{
-plot_crayons()
-
-}
-\references{
-\url{http://en.wikipedia.org/wiki/List_of_Crayola_crayon_colors}
-}
-\seealso{
-\code{\link{brocolors}}
+Return point predictions and prediction intervals for functional 
+scalar-on-image quantile regression and outputs from FPCA.
 }
 \author{
-Karl W Broman, \email{broman@wisc.edu}
+Marco Palma, \email{M.Palma@warwick.ac.uk}
 }
-\keyword{hplot}
+\keyword{FPCA}

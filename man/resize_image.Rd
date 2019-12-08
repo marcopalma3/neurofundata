@@ -2,34 +2,26 @@
 % Please edit documentation in R/resize_image.R
 \name{resize_image}
 \alias{resize_image}
-\title{Illustration of crayon colors}
+\title{Select active areas within a mask}
 \usage{
 resize_image(mask, img = mask)
 }
 \arguments{
-\item{method2order}{method to order colors (\code{"hsv"} or \code{"cluster"})}
+\item{mask}{path of the mask file}
 
-\item{cex}{character expansion for the text}
-
-\item{mar}{margin parameters; vector of length 4 (see \code{\link[graphics]{par}})}
+\item{img}{path of the image file}
 }
 \value{
-None
+A list with the following elements
+\describe{
+  \item{array}{array containing voxels within the mask}
+  \item{original_coord}{coordinates of the limits of the mask with respect to the original size of the image}
+}
 }
 \description{
-Creates a plot of the crayon colors in \code{\link{brocolors}}
-}
-\examples{
-plot_crayons()
-
-}
-\references{
-\url{http://en.wikipedia.org/wiki/List_of_Crayola_crayon_colors}
-}
-\seealso{
-\code{\link{brocolors}}
+Select the part of the image within the mask.
 }
 \author{
-Karl W Broman, \email{broman@wisc.edu}
+Marco Palma, \email{M.Palma@warwick.ac.uk}
 }
-\keyword{hplot}
+\keyword{resize_image}
