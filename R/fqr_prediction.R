@@ -67,7 +67,7 @@ fqr_prediction <-  function(data_projected_name,
   regr_data <- scores_mat %>%
     as.data.frame(.) %>%
     tibble::rownames_to_column(., var = "PTID") %>%
-    right_join(data_demo, ., by =  "PTID") %>%
+    dplyr::right_join(data_demo, ., by =  "PTID") %>%
     select(PTID, AGE, starts_with('V', ignore.case = FALSE)) %>%
     tibble::column_to_rownames(., "PTID")
 
@@ -96,7 +96,7 @@ fqr_prediction <-  function(data_projected_name,
 
   lambda_min_med <- model_med$lambda.min
 
-  if (return_func_coef == TRUE) print(cv_plots(model_med, logLambda = TRUE, loi = NULL))
+  if (return_func_coef == TRUE) print(rqPen::cv_plots(model_med, logLambda = TRUE, loi = NULL))
 
   if (qr_postLASSO == TRUE) {
     model_lower <- model_lower_coef %>%

@@ -6,7 +6,8 @@
 \usage{
 slices_plot(
   image_vec,
-  dims,
+  mask = mask,
+  dims = dims_mask,
   voxels,
   col_threshold = 0,
   legend_range = range(image_vec),

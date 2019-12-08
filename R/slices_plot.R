@@ -16,7 +16,8 @@
  
 
 slices_plot <- function(image_vec,
-                        dims,
+                        mask = mask,
+                        dims = dims_mask,
                         voxels,
                         col_threshold = 0,
                         legend_range = range(image_vec),
@@ -25,7 +26,7 @@ slices_plot <- function(image_vec,
   img <- rep(NA, prod(dims))
   img[voxels] <- image_vec
 
-  ybr <- seq(legend.range[1], legend.range[2], length.out = 101)
+  ybr <- seq(legend_range[1], legend_range[2], length.out = 101)
   rc1 <- grDevices::colorRampPalette(colors = c("blue", "white"), space="Lab")(length(which(ybr < col_threshold)))
   rc2 <- grDevices::colorRampPalette(colors = c("white", "red"), space="Lab")(length(which(ybr > col_threshold))-1)
   rampcols <- c(rc1, rc2)
@@ -38,9 +39,9 @@ slices_plot <- function(image_vec,
     leg_text <- c(floor(min(ybr)), col_threshold, ceiling(max(ybr)))
   }
 
-  overlay(
-    x = nifti(resize_image(mask, img_template)$array),
-    y = nifti(array(img, dim = dims)),
+  oro.nifti::overlay(
+    x = oro.nifti::nifti(resize_image(mask, img_template)$array),
+    y = oro.nifti::nifti(array(img, dim = dims)),
     plot.type = "single",
     z = seq(16, 136, by = 5),
     col.y = scales::alpha(rampcols, 0.45),
