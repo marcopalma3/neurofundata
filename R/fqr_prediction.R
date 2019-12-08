@@ -148,7 +148,7 @@ fqr_prediction <-  function(data_projected_name,
         model_med_coef = as(model_med_coef, "sparseMatrix"),
         model_lower_coef = as(model_lower_coef, "sparseMatrix"),
         model_upper_coef = as(model_upper_coef, "sparseMatrix"),
-        lambda_min = lambda_min_med,
+        lambda_min = lambda_min_med
       )
     )
 }

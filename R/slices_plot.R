@@ -33,7 +33,7 @@ slices_plot <- function(image_vec,
 
   if (col_threshold == 0) {
     leg_text <- c(format(min(ybr), scientific = TRUE, digits = 3),
-                  col.threshold,
+                  col_threshold,
                   format(max(ybr), scientific = TRUE, digits = 3))
   } else {
     leg_text <- c(floor(min(ybr)), col_threshold, ceiling(max(ybr)))
