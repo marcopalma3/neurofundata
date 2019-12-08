@@ -18,9 +18,12 @@
 #' @keywords calc_projection_Bspl
 #'
 #' @export
+#' @importFrom magrittr %>%
 #' @importFrom oro.nifti readNIfTI
 #' @importFrom fda bsplineS
 #' @importFrom spam kronecker
+#' @importFrom Matrix colSums
+
 
 
 calc_projection_Bspl <- function(knot_space, mask_fname){

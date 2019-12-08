@@ -5,9 +5,11 @@
 \title{Prediction intervals for functional quantile regression}
 \usage{
 fqr_prediction(
+  data_projected_name,
   train_sub,
   test_sub,
   data_demo,
+  pve_threshold,
   pred_table,
   qr_pen = "LASSO",
   qr_postLASSO = FALSE,
@@ -17,6 +19,8 @@ fqr_prediction(
 )
 }
 \arguments{
+\item{data_projected_name}{text file with the smoothing projections for each statistical unit}
+
 \item{train_sub}{rownames of \code{data_projected_name} used to fit the FPCA}
 
 \item{test_sub}{rownames of \code{data_projected_name} for which to get the FPCA scores}
@@ -34,8 +38,6 @@ fqr_prediction(
 \item{tau_levels}{quantiles for which quantile regression is fitted}
 
 \item{return_func_coef}{return the functional coefficient?}
-
-\item{data_projected_name}{text file with the smoothing projections for each statistical unit}
 }
 \value{
 A list with the following elements

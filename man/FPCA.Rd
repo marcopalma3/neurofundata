@@ -7,9 +7,10 @@
 FPCA(
   basis_mat,
   knot_space,
+  pve_threshold,
   data_projected_name = paste0("data_projected_", knot_space, "mm.dat"),
   train_sub,
-  test_sub
+  test_sub = train_sub
 )
 }
 \arguments{
@@ -17,13 +18,13 @@ FPCA(
 
 \item{knot_space}{space between consecutive knots (in mm, equal for each dimension)}
 
+\item{pve_threshold}{proportion of variance explained}
+
 \item{data_projected_name}{text file with the smoothing projections for each statistical unit}
 
 \item{train_sub}{rownames of \code{data_projected_name} used to fit the FPCA}
 
 \item{test_sub}{rownames of \code{data_projected_name} for which to get the FPCA scores}
-
-\item{pve_threshold}{proportion of variance explained}
 }
 \value{
 A list with the following elements

@@ -1,6 +1,6 @@
 Package: neurofundata
 Type: Package
-Title: Functional data analysis tools for neuroimaging data.
+Title: Functional data analysis tools for neuroimaging data
 Version: 0.1.0
 Author: person("Marco", "Palma", email = "M.Palma@warwick.ac.uk",
                   role = c("aut", "cre"))
@@ -12,7 +12,8 @@ License: What license is it under?
 Encoding: UTF-8
 LazyData: true
 Imports: 
-    fields, 
+    data.table,
+    methods,
     fda, 
     oro.nifti, 
     spam, 
@@ -20,9 +21,19 @@ Imports:
     knitr, 
     rqPen,
     quantreg, 
+    ggExtra,
+    scales,
     stringr, 
+    purrr,
+    tidyr,
+    tibble,
+    ggplot2,
+    graphics,
+    stats,
+    tidyselect,
+    magrittr,
     dplyr, 
-    magrittr
+    fields
 Suggests: RMarkdown
 VignetteBuilder: knitr
 RoxygenNote: 7.0.2

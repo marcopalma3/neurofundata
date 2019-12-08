@@ -23,6 +23,8 @@
 #' @importFrom data.table fread
 #' @importFrom Matrix crossprod chol
 #' @importFrom spam kronecker
+#' @importFrom magrittr %>%
+
 
 
 FPCA <- function(basis_mat,
