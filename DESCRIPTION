@@ -11,7 +11,7 @@ Description: This package is specifically designed to deal with 3-dimensional
 License: What license is it under?
 Encoding: UTF-8
 LazyData: true
-Imports: fields, fda, oro.nifti, spam, knitr, rqPen, quantreg, stringr, dplyr, magrittr
+Imports: fields, fda, oro.nifti, spam, Matrix, knitr, rqPen, quantreg, stringr, dplyr, magrittr
 Suggests: RMarkdown
 VignetteBuilder: knitr
 RoxygenNote: 7.0.2

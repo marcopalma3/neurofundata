@@ -48,7 +48,7 @@ calc_projection_Bspl <- function(knot_space, mask_fname){
   design_mat <- spam::kronecker(basismat_dim3, basismat_dim2, make.dimnames = TRUE) %>%
     spam::kronecker(., basismat_dim1, make.dimnames = TRUE) %>%
     .[voxel_grid_nonzero_mask, ]  %>%
-    .[, colSums(.) != 0]
+    .[, Matrix::colSums(.) != 0]
 
   #design_mat@x[design_mat@x<0.001] <- 0
   #design_mat <- design_mat[, colSums(design_mat) != 0]
