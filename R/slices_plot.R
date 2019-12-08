@@ -3,9 +3,9 @@
 #' Select the part of the image within the mask. 
 #'
 #' @param image_vec vectorised image values
-#' @param mask original mask image
+#' @param mask_obj original mask image
 #' @param dims image dimensions
-#' @param img_template minimal deformation template (for TBM images)
+#' @param img_templ minimal deformation template (for TBM images)
 #' @param voxels voxels indices within the mask (it must have the same dimensions as image_vec)
 #' @param col_threshold midpoint in the divergent colour scale
 #' @param legend_range extremes of the divergent colour scale
@@ -18,9 +18,9 @@
  
 
 slices_plot <- function(image_vec,
-                        mask = mask,
+                        mask_obj = mask,
                         dims = dims_mask,
-                        img_template = img_template,
+                        img_templ = img_template,
                         voxels,
                         col_threshold = 0,
                         legend_range = range(image_vec),
@@ -43,7 +43,7 @@ slices_plot <- function(image_vec,
   }
 
   oro.nifti::overlay(
-    x = oro.nifti::nifti(resize_image(mask, img_template)$array),
+    x = oro.nifti::nifti(resize_image(mask_obj, img_templ)$array),
     y = oro.nifti::nifti(array(img, dim = dims)),
     plot.type = "single",
     z = seq(16, 136, by = 5),
