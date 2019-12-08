@@ -1,3 +1,4 @@
 # neurofundata
-Functional data analysis tools for neuroimaging data
-"Vignettes in preparation." 
+Functional data analysis tools for neuroimaging data.
+
+Vignettes in preparation.
